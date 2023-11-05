@@ -4,10 +4,11 @@ import librosa
 import hashlib
 import sqlite3
 import numpy as np
+from Levenshtein import ratio
 
 # Traitement du son à identifier
-input_file_to_identify = 'test.m4a'
-output_file_to_identify = 'test.wav'
+input_file_to_identify = 'test2.m4a'
+output_file_to_identify = 'test2.wav'
 audio_to_identify = AudioSegment.from_file(input_file_to_identify, format='m4a')
 audio_to_identify.export(output_file_to_identify, format='wav')
 
@@ -34,14 +35,14 @@ cursor.execute("SELECT hash FROM fingerprints")
 stored_hashes = cursor.fetchall()
 stored_hashes = [item[0] for item in stored_hashes]
 
-# Calcul des similarités avec la distance de Jaccard
-jaccard_similarities = [len(set(hashes_to_identify) & set(hash_from_db)) / len(set(hashes_to_identify) | set(hash_from_db)) for hash_from_db in stored_hashes]
+# Calcul des similarités avec la similarité de Levenshtein
+levenshtein_similarities = [ratio(hashes_to_identify, hash_from_db) for hash_from_db in stored_hashes]
 
 # Seuil pour la correspondance
-threshold = 0
+threshold = 0 # Seuil de similarité de 0.8 pour un exemple
 
 # Identification des chansons correspondantes
-matches = [i for i, similarity in enumerate(jaccard_similarities) if similarity > threshold]
+matches = [i for i, similarity in enumerate(levenshtein_similarities) if similarity > threshold]
 
 if matches:
     # Votre logique pour traiter les correspondances
