@@ -16,7 +16,7 @@ cursor = conn.cursor()
 
 ########### On récupère l'ensemble des fichier dan une liste ####################
 
-output_folder='./audio_wav'
+output_folder='./audio_originals'
 
 # Obtenez la liste des fichiers dans le répertoire
 liste_fichiers = [f for f in os.listdir(output_folder)]
