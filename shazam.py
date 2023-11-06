@@ -28,6 +28,8 @@ stft = librosa.stft(y, n_fft=n_fft)
 # Calculez les empreintes digitales audio en utilisant chroma
 chroma = librosa.feature.chroma_stft(S=stft, sr=sr)
 hashes_to_identify = [hashlib.sha1(str(frame).encode()).hexdigest() for frame in chroma.T]
+
+print(chroma[0])
 ############################################################################
 
 

@@ -1,51 +1,57 @@
-########## Fichier qui permet de charger les fingerprint dans la BDD ############
-############ Bibliothèques utiles #############
-
 import os 
-from pydub import AudioSegment
+import numpy as np
 import librosa
 import hashlib
 import sqlite3
 
-
-
-########### On initialise l'ouverture de la base de donnée
-
+# Connexion à la base de données SQLite
 conn = sqlite3.connect('shazam_clone.db')
 cursor = conn.cursor()
 
-########### On récupère l'ensemble des fichier dan une liste ####################
-
-output_folder='./audio_originals'
-
-# Obtenez la liste des fichiers dans le répertoire
+output_folder = './audio_originals'
 liste_fichiers = [f for f in os.listdir(output_folder)]
 
-print(liste_fichiers)
-
-# Pour chaque fichier on va l'importer dans la Base de donées
 for fichier in liste_fichiers:
-    
-    # Chargez le fichier WAV
     y, sr = librosa.load(output_folder + '/' + fichier)
 
-    # Réglage de la taille de la fenêtre de transformation de Fourier à court terme
-    n_fft = 512
+    # Taille des blocs pour l'analyse FFT
+    block_size = 4096
+    hop_length = block_size // 2  # La moitié du bloc pour le chevauchement
 
-    # Calculez la transformée de Fourier à court terme (STFT) avec n_fft spécifié
-    stft = librosa.stft(y, n_fft=n_fft)
+    # Liste pour stocker les empreintes de chaque fichier
+    fingerprints = []
 
-    # Calculez les empreintes digitales audio en utilisant chroma
-    chroma = librosa.feature.chroma_stft(S=stft, sr=sr)
-    hashes = [hashlib.sha1(str(frame).encode()).hexdigest() for frame in chroma.T]
+    # Diviser le signal en blocs et appliquer la FFT sur chaque bloc
+    for i in range(0, len(y) - block_size, hop_length):
+        block = y[i:i + block_size]
+        fft_block = np.fft.fft(block)
+        freqs = np.fft.fftfreq(len(fft_block), 1/sr)
+        
+        # Diviser les fréquences en 6 bandes
+        freq_bands = [
+            np.where((freqs >= 0) & (freqs <= 113))[0],
+            np.where((freqs > 113) & (freqs <= 220))[0],
+            np.where((freqs > 220) & (freqs <= 436))[0],
+            np.where((freqs > 436) & (freqs <= 866))[0],
+            np.where((freqs > 866) & (freqs <= 1728))[0],
+            np.where((freqs > 1728) & (freqs <= 5507))[0]
+        ]
+        
+        # Trouver la fréquence de plus grande amplitude dans chaque bande
+        selected_freqs = []
+        for band in freq_bands:
+            if len(band) > 0:
+                max_amp_index = band[np.argmax(np.abs(fft_block[band]))]
+                selected_freqs.append(freqs[max_amp_index])
+        
+        fingerprints.append(selected_freqs)
 
-    fichiers = [ fichier for i in range (len(hashes)) ]
+    # Convertir les empreintes en chaînes pour le stockage
+    hashes = [hashlib.sha1(str(frame).encode()).hexdigest() for frame in fingerprints]
 
-    # Stockez les empreintes digitales dans la base de données SQLite en incluant le nom de la chanson
-    for h, song_name in zip(hashes, fichiers):
-        cursor.execute("INSERT INTO fingerprints (hash, nom) VALUES (?, ?)", (h, song_name))
-
-
+    # Stocker les empreintes dans la base de données
+    for h in hashes:
+        cursor.execute("INSERT INTO fingerprints (hash, nom) VALUES (?, ?)", (h, fichier))
 
 conn.commit()
 conn.close()
